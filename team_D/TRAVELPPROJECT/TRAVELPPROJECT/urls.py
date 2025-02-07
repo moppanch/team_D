@@ -4,18 +4,16 @@ from django.urls import path, include
 from django.conf import settings
 # staticを追加
 from django.conf.urls.static import static
+ 
 urlpatterns = [
     path('admin/', admin.site.urls),
  
     path('',include('travelp.urls')),
-
+ 
     # accounts.urlsへのURLパターン
     path('', include('accounts.urls')),
-
-]
-
  
-
+]
  
  
 # urlpatternsにmediaフォルダーのURLパターンを追加

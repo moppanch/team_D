@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/4.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.0/ref/settings/
 """
-
+ 
 from pathlib import Path
 import os
  
@@ -136,10 +136,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
  
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static'),]
-
+ 
 # Userモデルの代わりにCustomUserモデルを使用する
 AUTH_USER_MODEL = 'accounts.CustomUser'
-
+ 
  
 # Userモデルの代わりにCustomUserモデルを使用する
 AUTH_USER_MODEL = 'accounts.CustomUser'
@@ -165,7 +165,7 @@ TEMPLATES = [
         },
     },
 ]
-
+ 
 # mediaのURLを登録
 MEDIA_URL = '/media/'
 # mediaフォルダーの場所(BASE_DIR以下のmedia)を登録
