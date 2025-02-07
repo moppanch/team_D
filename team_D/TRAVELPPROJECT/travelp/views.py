@@ -137,13 +137,13 @@ class PostDetailView(DetailView):
  
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-
+ 
         # **この投稿を含むプランを取得**
         context['plans'] = Plan.objects.filter(posts=self.object)
-        
+       
         # **デバッグ: プランの数をログに出す**
         print(f"DEBUG: {self.object.title} を含むプラン数 → {context['plans'].count()}")
-
+ 
         post = self.object  # 現在表示されている投稿オブジェクトを取得
  
         context['comments'] = Comment.objects.filter(post=post)
@@ -157,16 +157,16 @@ class PostDetailView(DetailView):
    
     def post_detail(request, post_id):
         post = get_object_or_404(Post, id=post_id)
-
+ 
         # **イイネ or コメントがない場合はリダイレクト**
         if not (post.likes.filter(id=request.user.id).exists() or post.comments.filter(user=request.user).exists()):
             return redirect('some_other_page')
-
+ 
         # **この投稿が含まれる全てのプランを取得（どのユーザーのプランでもOK）**
         plans = Plan.objects.filter(posts=post)
-
+ 
         print(f"DEBUG: {post.title} を含むプラン数 → {plans.count()}")
-
+ 
         return render(request, 'post_detail.html', {'post': post, 'plans': plans})
        
 class PostLikeView(View):
@@ -214,19 +214,19 @@ def mypost(request):
         # プラン作成処理（フォームから送られてきたプラン名と選択した投稿）
         plan_name = request.POST.get('plan_name')
         selected_posts = request.POST.getlist('selected_posts')
-
+ 
         # Planの作成
         plan = Plan.objects.create(user=request.user, name=plan_name)
-
+ 
         # 投稿をプランに関連付け
         for post_id in selected_posts:
             post = Post.objects.get(pk=post_id)
             plan.posts.add(post)
-
+ 
         return redirect('travelp:myplan')  # 作成したプランページにリダイレクト
-
+ 
     return render(request, 'mypost.html', {'posts': posts})
-
+ 
 @login_required
 def myplan(request):
     plans = Plan.objects.filter(user=request.user).order_by('-id')  # 自分の作成したプランを取得（新しい順）
@@ -234,47 +234,47 @@ def myplan(request):
         # 各プランの中で一番古い投稿を取得
         plan.thumbnail = plan.posts.order_by('created_at').first()
     return render(request, 'myplan.html', {'plans': plans})
-
+ 
 @login_required
 def plan_detail(request, plan_id):
     plan = get_object_or_404(Plan, id=plan_id)  # どのユーザーのプランでも取得可能に
-
-
+ 
+ 
     return render(request, 'plan_detail.html', {'plan': plan})
-
-
+ 
+ 
 @login_required
 def save_plan(request):
     if request.method == "POST":
         plan_name = request.POST.get('plan_name')
         selected_post_ids = request.POST.getlist('selected_posts')
         selected_posts = Post.objects.filter(id__in=selected_post_ids)
-
+ 
         # プランを作成
         plan = Plan.objects.create(name=plan_name, user=request.user)
         plan.posts.add(*selected_posts)  # 選択した投稿をプランに追加
-
+ 
         return redirect('travelp:myplan', plan.pk)
-
+ 
     return redirect('travelp:mypost')
-
+ 
 def create_plan(request):
     if request.method == 'POST':
         # 選択された投稿を取得
         selected_posts = request.POST.getlist('selected_posts')  # 複数の投稿IDを取得
-        
+       
         # Planの作成
         plan = Plan.objects.create(user=request.user)
-        
+       
         # 投稿をプランに関連付ける
         for post_id in selected_posts:
             post = Post.objects.get(pk=post_id)
             plan.posts.add(post)  # `posts` は Plan モデルで定義された ManyToMany フィールド
-        
+       
         return redirect('travelp:myplan', plan_id=plan.id)  # 作成したプランページにリダイレクト
-    
+   
     return redirect('travelp:mypost')  # GETリクエストの場合は自分の投稿ページにリダイレクト
-
+ 
 @login_required
 def delete_plan(request, plan_id):
     """プランを削除"""
@@ -403,3 +403,84 @@ def fundraising_delete(request, pk):
         return redirect('travelp:fundraising_list')
    
     return redirect('travelp:fundraising_detail', pk=pk)
+ 
+ 
+ 
+import stripe
+from django.conf import settings
+from django.shortcuts import render, redirect
+from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
+from travelp.models import FundraisingProject  # 募金プロジェクトのモデル
+ 
+ 
+stripe.api_key = settings.STRIPE_SECRET_KEY
+ 
+@csrf_exempt
+def create_checkout_session(request, pk):
+    project = get_object_or_404(Fundraising, id=pk)
+ 
+    session = stripe.checkout.Session.create(
+        payment_method_types=['card'],
+        line_items=[{
+            'price_data': {
+                'currency': 'jpy',
+                'product_data': {
+                    'name': project.title,
+                },
+                # 'unit_amount': "amount",  # 募金額を動的に取得する場合は後で変更
+                'unit_amount': 1000,  # 募金額を動的に取得する場合は後で変更
+            },
+            'quantity': 1,
+        }],
+        mode='payment',
+        success_url=request.build_absolute_uri(reverse('travelp:fundraising_detail', args=[project.id])) + "?session_id={CHECKOUT_SESSION_ID}",
+        cancel_url=request.build_absolute_uri(reverse('travelp:fundraising_detail', args=[project.id])),
+    )
+ 
+    return redirect(session.url, code=303)
+ 
+from django.shortcuts import render, redirect, get_object_or_404
+from django.views.generic import CreateView, FormView
+from django.urls import reverse_lazy
+from .forms import ProfileEditForm, PostCreateForm, CommentForm
+from django.utils.decorators import method_decorator
+from django.contrib.auth.decorators import login_required
+from django.views.generic import TemplateView, ListView, DetailView, UpdateView, View
+from .models import Post, PostImage, Comment, Like, CustomUser
+from django.http import JsonResponse
+from django.contrib.auth.mixins import LoginRequiredMixin
+from . import models
+from django.db.models import Q
+from django.contrib import messages
+from .models import Fundraising, Donation
+from .forms import DonationForm
+ 
+# その他のビュー...
+ 
+def donate(request, pk):
+    project = get_object_or_404(Fundraising, pk=pk)
+ 
+    if request.method == "POST":
+        form = DonationForm(request.POST)
+        if form.is_valid():
+            amount = form.cleaned_data['amount']
+            payment_method = request.POST.get("payment")
+ 
+            if amount <= 0:
+                messages.error(request, "募金額は1円以上にしてください。")
+                return redirect('travelp:fundraising_detail', pk=project.pk)
+ 
+            if payment_method == "pbank":
+                # 銀行振込の場合のみ処理
+                donation = Donation(
+                    project=project,
+                    donor=request.user,
+                    amount=amount
+                )
+                donation.save()
+                project.raised_amount += amount
+                project.save()
+ 
+                messages.success(request, f"¥{amount}の募金が成功しました！")
+                return redirect('travelp:fundraising_detail', pk=project.pk)
